@@ -147,8 +147,8 @@ body{
     margin:0;padding:0;min-height:100vh;display:flex;flex-direction:column;
 }
 /* 白底模式下卡片与背景同色时加微弱阴影区分 */
-body:not(.dark) .tbl{border-color:var(--border);box-shadow:0 1px 3px rgba(0,0,0,0.04)}
-body:not(.dark) .dlg{box-shadow:0 6px 24px rgba(0,0,0,0.08)}
+html:not(.dark) .tbl{box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+html:not(.dark) .dlg{box-shadow:0 6px 24px rgba(0,0,0,0.08)}
 .app{flex:1;padding:20px 16px 16px}
 
 .top{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:18px}
