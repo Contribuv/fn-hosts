@@ -53,9 +53,10 @@ start() {
     rm -f "$APP_DIR/app.sock" 2>/dev/null || true
     fuser -k ${PORT}/tcp 2>/dev/null || true
 
-    # 安装 Python 依赖
-    if [ -f "$APP_DIR/requirements.txt" ]; then
-        python3.11 -m pip install -r "$APP_DIR/requirements.txt" -q 2>/dev/null || true
+    # 安装 Python 依赖（requirements.txt 在 app/ 子目录）
+    REQ_FILE="$APP_DIR/app/requirements.txt"
+    if [ -f "$REQ_FILE" ]; then
+        python3.11 -m pip install -r "$REQ_FILE" -q 2>/dev/null || true
     fi
 
     # 创建备份目录
