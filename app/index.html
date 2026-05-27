@@ -81,34 +81,34 @@
 </script>
 <style>
 :root {
-    --bg: #f2f4f7;
+    --bg: #fff;
     --bg2: #fff;
-    --bg3: #f8f9fb;
-    --bg4: #f5f6f9;
-    --text: #1f242e;
-    --text2: #58616e;
-    --text3: #9098a4;
-    --border: #dfe2e8;
+    --bg3: #f4f5f7;
+    --bg4: #f8f9fb;
+    --text: #1e2126;
+    --text2: #5c6169;
+    --text3: #949aa3;
+    --border: #dcdfe3;
     --border2: #eef0f4;
-    --primary: #3876e0;
-    --primary-hover: #2a5fc6;
-    --danger: #e04848;
-    --danger-hover: #cc3030;
+    --primary: #2973e6;
+    --primary-hover: #2260cc;
+    --danger: #e03a30;
+    --danger-hover: #cc3126;
     --danger-bg: #fef2f2;
-    --success: #32a753;
-    --success-bg: #edf8f0;
-    --hover-bg: #f0f2f6;
-    --ip-color: #3876e0;
+    --success: #3ba859;
+    --success-bg: #edf8ef;
+    --hover-bg: #f6f7f9;
+    --ip-color: #2973e6;
     --input-bg: #fff;
-    --overlay-bg: rgba(0,0,0,0.3);
+    --overlay-bg: rgba(0,0,0,0.25);
     --toast-bg: #fff;
-    --toast-ok: #2a8f43;
-    --toast-err: #cc3030;
-    --toast-inf: #2a5fc6;
+    --toast-ok: #3ba859;
+    --toast-err: #e03a30;
+    --toast-inf: #2973e6;
     --btn-text: #fff;
-    --scrollbar-track: #f2f4f7;
-    --scrollbar-thumb: #cfd3dd;
-    --scrollbar-thumb-hover: #a0a8b4;
+    --scrollbar-track: #fff;
+    --scrollbar-thumb: #d0d4db;
+    --scrollbar-thumb-hover: #a4aab4;
 }
 html.dark {
     --bg: #0f172a;
@@ -146,6 +146,9 @@ body{
     background:var(--bg);color:var(--text);font-size:14px;
     margin:0;padding:0;min-height:100vh;display:flex;flex-direction:column;
 }
+/* 白底模式下卡片与背景同色时加微弱阴影区分 */
+body:not(.dark) .tbl{border-color:var(--border);box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+body:not(.dark) .dlg{box-shadow:0 6px 24px rgba(0,0,0,0.08)}
 .app{flex:1;padding:20px 16px 16px}
 
 .top{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:18px}
@@ -242,7 +245,7 @@ html.dark .act button.del:hover{color:#f87171}
 <body>
 <div class="app">
     <div class="top">
-        <div><h1>Hosts 文件管理<span class="ver">v1.0.42</span></h1></div>
+        <div><h1>Hosts 文件管理<span class="ver">v1.0.44</span></h1></div>
         <div class="st" id="st"><span id="stx">正常</span></div>
     </div>
 
