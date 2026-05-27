@@ -1,5 +1,44 @@
 #!/bin/bash
+# ======================================================
+#  Hosts管理器 - 安装后回调脚本
+#  彻底放弃 venv（fnOS 精简 Python 连 math 都缺）
+#  改用 pip install --target vendor/ 本地隔离依赖
+#  运行时 PYTHONPATH 指向 vendor/，系统 Python 直接执行
+#  注意：fnpack 会扁平化 app/ 目录，文件都在 target 根目录
+# ======================================================
 
-### This script is called after the user installs the application.
+APP_DIR="$TRIM_APPDEST"
+LOG_FILE="$TRIM_PKGVAR/install.log"
+mkdir -p "$(dirname "$LOG_FILE")"
 
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE" 2>&1
+}
+
+log "========== 开始安装 Python 依赖 =========="
+
+# 清理旧 venv（如果存在）
+rm -rf "$APP_DIR/venv" 2>/dev/null
+
+# 创建 vendor 目录
+VENDOR_DIR="$APP_DIR/vendor"
+mkdir -p "$VENDOR_DIR"
+
+# 用系统 python3.11 + pip 安装依赖到 vendor/
+REQ_FILE="$APP_DIR/requirements.txt"
+if [ -f "$REQ_FILE" ]; then
+    log "安装 Python 依赖到 vendor/: $(cat "$REQ_FILE" | tr '\n' ' ')"
+    if python3.11 -m pip install --target "$VENDOR_DIR" -r "$REQ_FILE" --no-cache-dir 2>>"$LOG_FILE"; then
+        log "Python 依赖安装成功"
+    else
+        log "!! Python 依赖安装失败，请检查网络连接"
+    fi
+else
+    log "!! 未找到 requirements.txt (查找路径: $REQ_FILE)"
+fi
+
+# 创建 hosts 备份目录
+mkdir -p /etc/hosts_backups
+
+log "========== 安装完成 =========="
 exit 0

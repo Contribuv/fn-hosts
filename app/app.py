@@ -8,6 +8,14 @@
 """
 
 import sys as _sys
+import os as _os
+
+# 把 vendor/ 加入 sys.path（install_callback 用 pip --target 安装依赖到此）
+_APP_DIR = _os.environ.get("TRIM_APPDEST", _os.path.dirname(_os.path.abspath(__file__)))
+_VENDOR = _os.path.join(_APP_DIR, "vendor")
+if _os.path.isdir(_VENDOR) and _VENDOR not in _sys.path:
+    _sys.path.insert(0, _VENDOR)
+
 _stderr = _sys.stderr
 _stdout = _sys.stdout
 

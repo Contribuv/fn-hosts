@@ -1,5 +1,30 @@
 #!/bin/bash
+# ======================================================
+#  Hosts管理器 - 升级后回调脚本
+#  删除旧 venv，重新安装依赖到 vendor/
+# ======================================================
 
-### This script is called after the user upgrades the application.
+APP_DIR="$TRIM_APPDEST"
+LOG_FILE="$TRIM_PKGVAR/install.log"
 
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE" 2>&1
+}
+
+log "========== 升级: 重新安装 Python 依赖 =========="
+
+# 删除旧的 venv（如果存在）
+rm -rf "$APP_DIR/venv" 2>/dev/null
+
+# 重建 vendor/
+VENDOR_DIR="$APP_DIR/vendor"
+rm -rf "$VENDOR_DIR" 2>/dev/null
+mkdir -p "$VENDOR_DIR"
+
+# 用系统 python3.11 + pip 安装依赖到 vendor/
+if [ -f "$APP_DIR/requirements.txt" ]; then
+    python3.11 -m pip install --target "$VENDOR_DIR" -r "$APP_DIR/requirements.txt" --no-cache-dir 2>>"$LOG_FILE" || true
+fi
+
+log "========== 升级完成 =========="
 exit 0

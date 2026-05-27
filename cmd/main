@@ -53,11 +53,19 @@ start() {
     rm -f "$APP_DIR/app.sock" 2>/dev/null || true
     fuser -k ${PORT}/tcp 2>/dev/null || true
 
-    # 安装 Python 依赖（requirements.txt 在 app/ 子目录）
-    REQ_FILE="$APP_DIR/app/requirements.txt"
-    if [ -f "$REQ_FILE" ]; then
-        python3.11 -m pip install -r "$REQ_FILE" -q 2>/dev/null || true
+    # ---- Python 依赖管理 ----
+    # fnOS 精简 Python 缺 ensurepip/_posixsubprocess/math → 彻底放弃 venv
+    # 改用 pip install --target vendor/ 本地隔离，系统 Python 直接运行
+    VENDOR_DIR="$APP_DIR/vendor"
+    if [ ! -d "$VENDOR_DIR" ] && [ -f "$APP_DIR/requirements.txt" ]; then
+        mkdir -p "$VENDOR_DIR"
+        python3.11 -m pip install --target "$VENDOR_DIR" -r "$APP_DIR/requirements.txt" --no-cache-dir 2>>"$LOG_FILE" || true
     fi
+
+    # 导出 PYTHONPATH 让系统 Python 找到 vendor/ 里的依赖
+    export PYTHONPATH="${VENDOR_DIR}${PYTHONPATH:+:$PYTHONPATH}"
+
+    PYTHON_EXEC="python3.11"
 
     # 创建备份目录
     mkdir -p /etc/hosts_backups
@@ -65,7 +73,7 @@ start() {
     cd "$APP_DIR"
 
     # 启动 Python 应用（日志同时写入 info.log）
-    python3.11 -u "$APP_DIR/app.py" >> "$LOG_FILE" 2>&1 &
+    "$PYTHON_EXEC" -u "$APP_DIR/app.py" >> "$LOG_FILE" 2>&1 &
     APP_PID=$!
     echo $APP_PID > "$PID_FILE"
 

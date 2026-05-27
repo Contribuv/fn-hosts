@@ -1,5 +1,38 @@
 #!/bin/bash
+# ======================================================
+#  Hosts管理器 - 卸载后回调脚本
+#  彻底清理所有残留（进程、Socket、日志、端口、虚拟环境）
+# ======================================================
 
-### This script is called after the user uninstalls the application.
+APP_DIR="$TRIM_APPDEST"
+
+# ---- 1. 停止所有相关进程 ----
+if [ -f "$TRIM_TMPDIR/hosts_manager.pid" ]; then
+    PID=$(cat "$TRIM_TMPDIR/hosts_manager.pid" 2>/dev/null)
+    if [ -n "$PID" ]; then
+        kill "$PID" 2>/dev/null
+        sleep 1
+        kill -9 "$PID" 2>/dev/null || true
+    fi
+fi
+
+# 强制清理端口占用
+PORT="${TRIM_SERVICE_PORT:-5080}"
+fuser -k ${PORT}/tcp 2>/dev/null || true
+
+# ---- 2. 清理 Unix Socket ----
+rm -f "$APP_DIR/app.sock" 2>/dev/null || true
+
+# ---- 3. 清理依赖目录（target/ 虽由 fnOS 删除，但保险起见先清理） ----
+rm -rf "$APP_DIR/venv" 2>/dev/null || true
+rm -rf "$APP_DIR/vendor" 2>/dev/null || true
+
+# ---- 4. 清理 PID 文件和日志 ----
+rm -f "$TRIM_TMPDIR/hosts_manager.pid" 2>/dev/null || true
+rm -f "$TRIM_PKGVAR/info.log" 2>/dev/null || true
+rm -f "$TRIM_PKGVAR/install.log" 2>/dev/null || true
+
+# ---- 5. 清理 hosts 备份目录（可选：卸载时彻底删除） ----
+rm -rf /etc/hosts_backups 2>/dev/null || true
 
 exit 0
