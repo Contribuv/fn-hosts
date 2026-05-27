@@ -1,0 +1,127 @@
+#!/bin/bash
+# ======================================================
+#  Hosts管理器 - 生命周期管理脚本
+#  遵循 fnOS 开发规范（参考框架文档和测试应用文档）
+# ======================================================
+#
+# fnOS 注入的环境变量：
+#   TRIM_APPDEST      → 应用可执行文件目录 (target/)
+#   TRIM_PKGVAR       → 运行时动态数据目录 (var/)  [官方推荐使用此变量]
+#   TRIM_VARDIR       → 旧版兼容：同 TRIM_PKGVAR
+#   TRIM_TMPDIR       → 临时文件目录 (tmp/)
+#   TRIM_SERVICE_PORT → 应用服务端口（由 manifest.service_port 决定）
+#   TRIM_TEMP_LOGFILE → 临时日志文件（用于错误弹窗展示，V1.1.8+）
+#
+
+APP_DIR="$TRIM_APPDEST"
+
+# ---- 环境变量兼容处理 ----
+# 官方推荐 TRIM_PKGVAR，回退到 TRIM_VARDIR，再回退到相对路径
+if [ -n "$TRIM_PKGVAR" ]; then
+    PKG_VAR="$TRIM_PKGVAR"
+elif [ -n "$TRIM_VARDIR" ]; then
+    PKG_VAR="$TRIM_VARDIR"
+else
+    PKG_VAR="$(dirname "$APP_DIR")/var"
+fi
+
+# 临时目录
+if [ -z "$TRIM_TMPDIR" ]; then
+    TRIM_TMPDIR="$(dirname "$APP_DIR")/tmp"
+fi
+
+# 服务端口（使用 manifest 中定义的端口）
+PORT="${TRIM_SERVICE_PORT:-5080}"
+
+# 确保关键目录存在
+mkdir -p "$PKG_VAR" "$TRIM_TMPDIR"
+
+# PID 文件和日志文件路径
+PID_FILE="$TRIM_TMPDIR/hosts_manager.pid"
+
+# ★ 主日志：写入 $PKG_VAR/info.log
+#   fnOS 测试文档明确指出日志在此处：
+#   /var/apps/[appname]/var/info.log
+LOG_FILE="$PKG_VAR/info.log"
+
+# 导出环境变量给 Python 进程
+export PKG_VAR TRIM_TMPDIR TRIM_APPDEST PYTHONUNBUFFERED=1
+export APP_LOG_FILE="$LOG_FILE"
+
+start() {
+    # 清理旧资源
+    rm -f "$APP_DIR/app.sock" 2>/dev/null || true
+    fuser -k ${PORT}/tcp 2>/dev/null || true
+
+    # 安装 Python 依赖
+    if [ -f "$APP_DIR/requirements.txt" ]; then
+        python3.11 -m pip install -r "$APP_DIR/requirements.txt" -q 2>/dev/null || true
+    fi
+
+    # 创建备份目录
+    mkdir -p /etc/hosts_backups
+
+    cd "$APP_DIR"
+
+    # 启动 Python 应用（日志同时写入 info.log）
+    python3.11 -u "$APP_DIR/app.py" >> "$LOG_FILE" 2>&1 &
+    APP_PID=$!
+    echo $APP_PID > "$PID_FILE"
+
+    # 等待启动（给 Flask 2 秒初始化时间）
+    sleep 2
+
+    if [ -f "$PID_FILE" ] && kill -0 $(cat "$PID_FILE") 2>/dev/null; then
+        # 启动成功
+        exit 0
+    fi
+
+    # ---- 启动失败处理（遵循 V1.1.8+ 错误展示规范）----
+    # 将错误信息写入 TRIM_TEMP_LOGFILE，系统自动弹窗展示
+    if [ -n "$TRIM_TEMP_LOGFILE" ]; then
+        {
+            echo "Hosts管理器 启动失败！"
+            echo ""
+            echo "--- Python 进程退出码: $(cat /proc/$APP_PID/exit_code 2>/dev/null || echo '未知') ---"
+            echo "--- 最后 20 行日志 ---"
+            tail -20 "$LOG_FILE" 2>/dev/null || echo "(日志为空)"
+        } > "$TRIM_TEMP_LOGFILE"
+    fi
+
+    exit 1
+}
+
+stop() {
+    if [ -f "$PID_FILE" ]; then
+        PID=$(cat "$PID_FILE")
+        kill "$PID" 2>/dev/null
+        for i in $(seq 1 10); do
+            kill -0 "$PID" 2>/dev/null || break
+            sleep 0.5
+        done
+        kill -9 "$PID" 2>/dev/null || true
+        rm -f "$PID_FILE"
+    fi
+
+    # 清理端口和 Socket
+    fuser -k ${PORT}/tcp 2>/dev/null || true
+    rm -f "$APP_DIR/app.sock" 2>/dev/null || true
+
+    exit 0
+}
+
+status() {
+    if [ -f "$PID_FILE" ] && kill -0 $(cat "$PID_FILE") 2>/dev/null; then
+        exit 0    # 运行中
+    fi
+    exit 3        # 未运行（fnOS 规范）
+}
+
+case "$1" in
+    start)   start ;;
+    stop)    stop ;;
+    status)  status ;;
+    *)
+        exit 1
+        ;;
+esac

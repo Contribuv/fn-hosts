@@ -1,0 +1,8 @@
+#!/bin/bash
+# Hosts管理器 - 安装初始化脚本
+# 在用户安装应用之前调用
+
+# 创建备份目录
+mkdir -p /etc/hosts_backups
+
+exit 0

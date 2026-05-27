@@ -1,0 +1,15 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "hosts-backups",
+        "permission": {
+          "rw": ["hosts_manager"]
+        }
+      }
+    ]
+  },
+  "usr-local-linker": {
+    "bin": []
+  }
+}

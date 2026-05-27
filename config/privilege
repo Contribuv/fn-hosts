@@ -1,0 +1,10 @@
+{
+  "defaults": {
+    "run-as": "root"
+  },
+  "username": "hosts_manager",
+  "groupname": "hosts_manager",
+  "folder-permission": {
+    "rw": ["/etc"]
+  }
+}

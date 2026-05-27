@@ -1,0 +1,15 @@
+{
+  ".url": {
+    "fnnas.hosts.main": {
+      "title": "Hosts管理器",
+      "desc": "/etc/hosts 文件管理工具",
+      "icon": "images/icon-{0}.png",
+      "type": "iframe",
+      "protocol": "",
+      "gatewaySocket": "app.sock",
+      "gatewayPrefix": "/app/fnnas-hosts",
+      "url": "/app/fnnas-hosts",
+      "allUsers": false
+    }
+  }
+}

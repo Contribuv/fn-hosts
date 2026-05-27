@@ -1,0 +1,513 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hosts 管理器</title>
+<script>
+(function(){
+    var h=document.documentElement;
+    function applyTheme(isDark){
+        if(isDark) h.classList.add('dark');
+        else h.classList.remove('dark');
+    }
+    function detectTheme(){
+        var isDark=false, resolved=false;
+        // 1. 尝试从父窗口检测 .dark class（fnOS iframe 环境）
+        try{
+            if(window.parent!==window&&window.parent.document){
+                var parentHtml=window.parent.document.documentElement;
+                // 检查父窗口是否有 .dark class
+                if(parentHtml.classList.contains('dark')){
+                    isDark=true; resolved=true;
+                }
+                // 检查 data-theme 属性
+                if(!resolved){
+                    var v=parentHtml.getAttribute('data-theme')||parentHtml.getAttribute('data-color-scheme');
+                    if(v){
+                        v=v.toLowerCase();
+                        if(v.indexOf('dark')!==-1){isDark=true; resolved=true;}
+                        else if(v.indexOf('light')!==-1){isDark=false; resolved=true;}
+                    }
+                }
+                // 通过父窗口背景亮度判断
+                if(!resolved){
+                    var b=getComputedStyle(parentHtml).backgroundColor;
+                    var c=b.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                    if(c){
+                        var br=(parseInt(c[1])*299+parseInt(c[2])*587+parseInt(c[3])*114)/1000;
+                        isDark=br<128; resolved=true;
+                    }
+                }
+            }
+        }catch(e){}
+        // 2. matchMedia 系统主题作为兜底
+        if(!resolved){
+            try{
+                isDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
+                resolved=true;
+            }catch(e){}
+        }
+        applyTheme(isDark);
+    }
+    detectTheme();
+    // 延迟再检测一次，确保父窗口已完全渲染
+    setTimeout(detectTheme,100);
+    setTimeout(detectTheme,500);
+    // 监听系统主题变化
+    try{window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(e){applyTheme(e.matches);});}catch(e){}
+    // 监听父窗口通过 postMessage 传递主题
+    window.addEventListener('message',function(e){
+        try{
+            var d=typeof e.data==='string'?JSON.parse(e.data):e.data;
+            if(d&&(d.theme||d.type==='theme'||d.colorScheme)){
+                var v=d.theme||d.value||d.colorScheme;
+                if(v==='light') applyTheme(false);
+                else if(v==='dark') applyTheme(true);
+            }
+        }catch(ex){}
+    });
+    // MutationObserver: 监听父窗口 class 变化（如果父窗口切换了主题）
+    try{
+        if(window.parent!==window&&window.parent.document){
+            var obs=new MutationObserver(function(){
+                var parentHtml=window.parent.document.documentElement;
+                applyTheme(parentHtml.classList.contains('dark'));
+            });
+            obs.observe(window.parent.document.documentElement,{attributes:true,attributeFilter:['class','data-theme','data-color-scheme']});
+        }
+    }catch(e){}
+})();
+</script>
+<style>
+:root {
+    --bg: #f2f4f7;
+    --bg2: #fff;
+    --bg3: #f8f9fb;
+    --bg4: #f5f6f9;
+    --text: #1f242e;
+    --text2: #58616e;
+    --text3: #9098a4;
+    --border: #dfe2e8;
+    --border2: #eef0f4;
+    --primary: #3876e0;
+    --primary-hover: #2a5fc6;
+    --danger: #e04848;
+    --danger-hover: #cc3030;
+    --danger-bg: #fef2f2;
+    --success: #32a753;
+    --success-bg: #edf8f0;
+    --hover-bg: #f0f2f6;
+    --ip-color: #3876e0;
+    --input-bg: #fff;
+    --overlay-bg: rgba(0,0,0,0.3);
+    --toast-bg: #fff;
+    --toast-ok: #2a8f43;
+    --toast-err: #cc3030;
+    --toast-inf: #2a5fc6;
+    --btn-text: #fff;
+    --scrollbar-track: #f2f4f7;
+    --scrollbar-thumb: #cfd3dd;
+    --scrollbar-thumb-hover: #a0a8b4;
+}
+html.dark {
+    --bg: #0f172a;
+    --bg2: #1e293b;
+    --bg3: #334155;
+    --bg4: #1e293b;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --border: #334155;
+    --border2: #1e293b;
+    --primary: #3b82f6;
+    --primary-hover: #60a5fa;
+    --danger: #f87171;
+    --danger-hover: #ef4444;
+    --danger-bg: #7f1d1d33;
+    --success: #4ade80;
+    --success-bg: #14532d33;
+    --hover-bg: #1e293b;
+    --ip-color: #60a5fa;
+    --input-bg: #0f172a;
+    --overlay-bg: rgba(0,0,0,0.6);
+    --toast-bg: #1e293b;
+    --toast-ok: #4ade80;
+    --toast-err: #f87171;
+    --toast-inf: #60a5fa;
+    --btn-text: #fff;
+    --scrollbar-track: #1e293b;
+    --scrollbar-thumb: #475569;
+    --scrollbar-thumb-hover: #64748b;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--text);font-size:14px;
+    margin:0;padding:0;min-height:100vh;display:flex;flex-direction:column;
+}
+.app{flex:1;padding:20px 16px 16px}
+
+.top{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:18px}
+.top h1{font-size:16px;font-weight:600;color:var(--text)}
+.top .ver{font-size:12px;color:var(--text3);margin-left:6px}
+.top .st{font-size:12px;color:var(--success);background:transparent;border:1px solid var(--success);padding:3px 10px;border-radius:4px;cursor:pointer;transition:all .2s}
+.top .st:hover{background:var(--success);color:var(--btn-text)}
+.top .st.err{color:var(--danger);border-color:var(--danger)}
+.top .st.err:hover{background:var(--danger);color:var(--btn-text)}
+
+.bar{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.bar button{
+    padding:5px 12px;border:1px solid var(--border);background:var(--bg2);color:var(--text);
+    cursor:pointer;font-size:13px;line-height:1;height:30px;border-radius:6px;
+}
+.bar button:hover{background:var(--bg3)}
+.bar button.primary{background:var(--primary);border-color:var(--primary);color:var(--btn-text)}
+.bar button.primary:hover{background:var(--primary-hover)}
+.bar input{
+    padding:5px 10px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);
+    font-size:13px;width:170px;height:30px;border-radius:6px;
+}
+.bar input:focus{border-color:var(--primary);outline:none}
+.bar input::placeholder{color:var(--text3)}
+.bar .count{margin-left:auto;font-size:12px;color:var(--text3)}
+
+.tbl{border:1px solid var(--border);background:var(--bg2);overflow:hidden;border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:7px 10px;text-align:left;background:var(--bg3);color:var(--text2);font-weight:600;font-size:12px;border-bottom:1px solid var(--border)}
+td{padding:7px 10px;border-bottom:1px solid var(--border2);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--hover-bg)}
+.ip{font-family:"Consolas",monospace;color:var(--ip-color);white-space:nowrap}
+.hn{word-break:break-all}
+.cmt{color:var(--success);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.act{display:flex;gap:6px}
+.act button{padding:2px 0;border:none;background:none;color:var(--text2);cursor:pointer;font-size:12px}
+.act button:hover{color:var(--primary);text-decoration:underline}
+.act button.del{color:var(--text3)}
+.act button.del:hover{color:var(--danger);text-decoration:underline}
+
+.empty{text-align:center;padding:40px 16px;color:var(--text3)}
+
+.overlay{position:fixed;inset:0;background:var(--overlay-bg);display:flex;align-items:center;justify-content:center;z-index:100;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.dlg{background:var(--bg2);border:1px solid var(--border);width:92%;max-width:460px;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.12)}
+html.dark .dlg{box-shadow:0 8px 32px rgba(0,0,0,0.4)}
+.dlg .hd{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);font-size:14px;font-weight:600}
+.dlg .hd button{border:none;background:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0 4px;line-height:1}
+.dlg .hd button:hover{color:var(--text)}
+.dlg .bd{padding:16px}
+.dlg .ft{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--border)}
+.dlg .ft button{padding:5px 14px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-size:13px;height:30px;border-radius:6px}
+.dlg .ft button:hover{background:var(--bg3)}
+.dlg .ft button.primary{background:var(--primary);border-color:var(--primary);color:var(--btn-text)}
+.dlg .ft button.primary:hover{background:var(--primary-hover)}
+.dlg .ft button.danger{background:var(--danger);border-color:var(--danger);color:var(--btn-text)}
+.dlg .ft button.danger:hover{background:var(--danger-hover)}
+.dlg label{display:block;margin-bottom:4px;font-size:12px;color:var(--text2)}
+.dlg input,.dlg textarea{width:100%;padding:6px 10px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);font-size:13px;font-family:inherit;margin-bottom:12px;border-radius:6px}
+.dlg input:focus,.dlg textarea:focus{border-color:var(--primary);outline:none}
+.dlg input::placeholder,.dlg textarea::placeholder{color:var(--text3)}
+.dlg textarea{min-height:80px;resize:vertical;font-family:"Consolas",monospace}
+.dlg .tip{font-size:11px;color:var(--text3);margin-top:-9px;margin-bottom:12px}
+
+.toasts{position:fixed;top:12px;right:12px;z-index:200;display:flex;flex-direction:column;gap:6px}
+.toast{padding:8px 16px;font-size:13px;color:var(--text);background:var(--toast-bg);border:1px solid var(--border);max-width:360px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15)}
+.toast.ok{border-left:3px solid var(--toast-ok)}
+.toast.err{border-left:3px solid var(--toast-err)}
+.toast.inf{border-left:3px solid var(--toast-inf)}
+
+.spin{display:inline-block;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;width:14px;height:14px;animation:rot .6s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+.footer{text-align:center;padding:10px;font-size:12px;color:var(--text3);border-top:1px solid var(--border);background:var(--bg2)}
+
+/* scrollbar - 参考 fnOS 主题系统 */
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--scrollbar-track)}
+::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border-radius:9999px}
+::-webkit-scrollbar-thumb:hover{background:var(--scrollbar-thumb-hover)}
+
+/* dark 模式下颜色微调：确保高对比度 */
+html.dark .top h1{color:#f1f5f9}
+html.dark .ip{color:#93c5fd}
+html.dark .cmt{color:#4ade80}
+html.dark .dlg .hd{color:#f1f5f9}
+html.dark .dlg .hd button:hover{color:#e2e8f0}
+html.dark .act button:hover{color:#60a5fa}
+html.dark .act button.del:hover{color:#f87171}
+
+@media(max-width:600px){.bar{flex-direction:column;align-items:stretch}.bar input{width:100%}.bar .count{margin-left:0}}
+</style>
+</head>
+<body>
+<div class="app">
+    <div class="top">
+        <div><h1>Hosts 文件管理<span class="ver">v1.0.41</span></h1></div>
+        <div class="st" id="st"><span id="stx">正常</span></div>
+    </div>
+
+    <div class="bar">
+        <button class="primary" onclick="openAddModal()">新增记录</button>
+        <button onclick="backupHosts()">备份</button>
+        <button onclick="flushDns()">刷新缓存</button>
+        <button onclick="openRestoreModal()">还原</button>
+        <button onclick="loadHosts()">重新加载</button>
+        <input type="text" placeholder="搜索 IP 或域名..." id="kw" oninput="filterTable()">
+        <span class="count" id="cnt">共 0 条记录</span>
+    </div>
+
+    <div class="tbl">
+        <table>
+            <thead><tr><th>行号</th><th>IP 地址</th><th>主机名</th><th>注释</th><th>操作</th></tr></thead>
+            <tbody id="tb"><tr><td colspan="5"><div class="empty"><span class="spin"></span>加载中...</div></td></tr></tbody>
+        </table>
+    </div>
+</div>
+<div class="footer">Hosts 管理器 &copy; 豪子选房</div>
+
+<div class="toasts" id="tos"></div>
+
+<!-- 新增/编辑 -->
+<div class="overlay" id="mo" style="display:none">
+    <div class="dlg">
+        <div class="hd"><span id="mt">新增 Hosts 记录</span><button onclick="closeModal()">x</button></div>
+        <div class="bd">
+            <label>IP 地址</label>
+            <input type="text" id="inp_ip" placeholder="192.168.1.100 或 fe80::1">
+            <div class="tip">支持 IPv4 和 IPv6</div>
+            <label>主机名</label>
+            <input type="text" id="inp_hn" placeholder="mynas.local mynas">
+            <div class="tip">多个主机名用空格分隔</div>
+            <label>注释</label>
+            <input type="text" id="inp_cmt" placeholder="备注说明">
+            <div id="bgroup" style="display:none">
+                <label>批量导入</label>
+                <textarea id="inp_bat" placeholder="每行一条: IP 主机名 #注释&#10;192.168.1.100 mynas.local&#10;10.0.0.1 server.local # 服务器"></textarea>
+            </div>
+        </div>
+        <div class="ft">
+            <button id="btn_bat" onclick="toggleBatch()" style="margin-right:auto">批量模式</button>
+            <button onclick="closeModal()">取消</button>
+            <button class="primary" id="btn_sub" onclick="submitForm()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 确认删除 -->
+<div class="overlay" id="co" style="display:none">
+    <div class="dlg">
+        <div class="hd">确认删除<button onclick="closeConfirm()">x</button></div>
+        <div class="bd">
+            <p>确定要删除这条记录吗？</p>
+            <p style="margin-top:8px;padding:6px 10px;background:var(--bg4);border:1px solid var(--border2);font-family:Consolas,monospace;font-size:12px;color:var(--danger);word-break:break-all;border-radius:4px" id="cctx"></p>
+        </div>
+        <div class="ft">
+            <button onclick="closeConfirm()">取消</button>
+            <button class="danger" id="btn_del">确认删除</button>
+        </div>
+    </div>
+</div>
+
+<!-- 还原 -->
+<div class="overlay" id="ro" style="display:none">
+    <div class="dlg" style="max-width:520px">
+        <div class="hd">还原 Hosts 文件<button onclick="closeRestoreModal()">x</button></div>
+        <div class="bd" style="max-height:320px;overflow-y:auto">
+            <p style="font-size:12px;color:var(--text2);margin-bottom:10px">还原前会自动备份当前版本</p>
+            <div id="rlist" style="text-align:center;padding:16px;color:var(--text3)"><span class="spin"></span>加载备份列表...</div>
+        </div>
+        <div class="ft"><button onclick="closeRestoreModal()">取消</button></div>
+    </div>
+</div>
+
+<script>
+const API_BASE = '/app/fnnas-hosts';
+let allEntries = [], currentEditLine = null, pendingDeleteLine = null, isBatchMode = false;
+
+document.addEventListener('DOMContentLoaded', loadHosts);
+
+function $id(id) { return document.getElementById(id); }
+
+async function apiCall(url, opts = {}) {
+    const h = { 'Content-Type': 'application/json', ...opts.headers };
+    const r = await fetch(API_BASE + url, { ...opts, headers: h });
+    const d = await r.json();
+    if (r.status === 403 && d.admin_required) {
+        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-family:-apple-system,BlinkMacSystemFont,sans-serif;color:var(--text)"><div style="text-align:center;max-width:360px;padding:40px"><h2 style="font-size:17px;margin-bottom:8px">需要管理员权限</h2><p style="font-size:13px;color:var(--text2)">当前用户 <strong>' + escapeHtml(d.current_user||'unknown') + '</strong> 不是 NAS 管理员，请使用管理员账号登录后重试。</p></div></div>';
+        return null;
+    }
+    if (!d.success) { showToast(d.error || '操作失败', 'err'); return d; }
+    return d;
+}
+
+async function loadHosts() {
+    $id('tb').innerHTML = '<tr><td colspan="5"><div class="empty"><span class="spin"></span>加载中...</div></td></tr>';
+    const r = await apiCall('/api/hosts');
+    if (!r || !r.success) { $id('tb').innerHTML = '<tr><td colspan="5"><div class="empty">加载失败</div></td></tr>'; updateStatus(false); return; }
+    updateStatus(true);
+    allEntries = r.data || [];
+    renderTable();
+    $id('cnt').innerHTML = '共 ' + (r.total||0) + ' 条记录';
+}
+
+function renderTable(filtered) {
+    const entries = filtered || allEntries;
+    const hosts = entries.filter(e => e.type === 'entry');
+    const tb = $id('tb');
+    if (hosts.length === 0 && entries.length === 0) { tb.innerHTML = '<tr><td colspan="5"><div class="empty">暂无记录</div></td></tr>'; $id('cnt').innerHTML = '共 0 条记录'; return; }
+    if (hosts.length === 0) { tb.innerHTML = '<tr><td colspan="5"><div class="empty">没有匹配的记录</div></td></tr>'; return; }
+    tb.innerHTML = hosts.map(e => {
+        const cmt = e.content.includes('#') ? e.content.split('#').slice(1).join('#').trim() : '';
+        return '<tr><td style="color:var(--text3)">' + e.line + '</td><td class="ip">' + escapeHtml(e.ip) + '</td><td class="hn">' + escapeHtml(e.hostnames) + '</td><td class="cmt" title="' + escapeHtml(cmt) + '">' + (escapeHtml(cmt)||'-') + '</td><td class="act"><button onclick="openEditModal(' + e.line + ')">编辑</button><button class="del" onclick="confirmDelete(' + e.line + ')">删除</button></td></tr>';
+    }).join('');
+    $id('cnt').innerHTML = '共 ' + hosts.length + ' 条记录';
+}
+
+function filterTable() {
+    const kw = $id('kw').value.toLowerCase().trim();
+    if (!kw) { renderTable(); return; }
+    renderTable(allEntries.filter(e => e.type === 'entry' && (e.ip.toLowerCase().includes(kw) || e.hostnames.toLowerCase().includes(kw) || e.content.toLowerCase().includes(kw))));
+}
+
+function openAddModal() {
+    currentEditLine = null; isBatchMode = false;
+    $id('mt').textContent = '新增 Hosts 记录';
+    $id('inp_ip').value = $id('inp_hn').value = $id('inp_cmt').value = $id('inp_bat').value = '';
+    $id('btn_sub').textContent = '保存';
+    $id('bgroup').style.display = 'none';
+    $id('btn_bat').textContent = '批量模式';
+    $id('mo').style.display = 'flex';
+    $id('inp_ip').focus();
+}
+
+function openEditModal(ln) {
+    const e = allEntries.find(x => x.line === ln);
+    if (!e) return;
+    currentEditLine = ln; isBatchMode = false;
+    $id('mt').textContent = '编辑记录 (第 ' + ln + ' 行)';
+    $id('inp_ip').value = e.ip;
+    $id('inp_hn').value = e.hostnames;
+    $id('inp_cmt').value = e.content.includes('#') ? e.content.split('#').slice(1).join('#').trim() : '';
+    $id('inp_bat').value = '';
+    $id('btn_sub').textContent = '更新';
+    $id('bgroup').style.display = 'none';
+    $id('btn_bat').textContent = '批量模式';
+    $id('mo').style.display = 'flex';
+    $id('inp_ip').focus();
+}
+
+function closeModal() { $id('mo').style.display = 'none'; currentEditLine = null; isBatchMode = false; }
+
+function toggleBatch() {
+    isBatchMode = !isBatchMode;
+    const g = $id('bgroup'), b = $id('btn_bat');
+    const s = [$id('inp_ip').parentElement, $id('inp_hn').parentElement, $id('inp_cmt').parentElement];
+    if (isBatchMode) {
+        g.style.display = 'block'; s.forEach(f => f.style.display = 'none');
+        b.textContent = '单条模式'; $id('mt').textContent = '批量导入';
+    } else {
+        g.style.display = 'none'; s.forEach(f => f.style.display = 'block');
+        b.textContent = '批量模式'; $id('mt').textContent = currentEditLine ? '编辑记录 (第 ' + currentEditLine + ' 行)' : '新增 Hosts 记录';
+    }
+}
+
+async function submitForm() {
+    if (isBatchMode) { await submitBatch(); return; }
+    const ip = $id('inp_ip').value.trim(), hn = $id('inp_hn').value.trim(), cmt = $id('inp_cmt').value.trim();
+    if (!ip || !hn) { showToast('请填写 IP 地址和主机名', 'err'); return; }
+    if (currentEditLine) {
+        const r = await apiCall('/api/hosts/update/' + currentEditLine, { method: 'PUT', body: JSON.stringify({ ip, hostnames: hn, comment: cmt }) });
+        if (r && r.success) { showToast('已更新', 'ok'); closeModal(); loadHosts(); }
+    } else {
+        const r = await apiCall('/api/hosts/add', { method: 'POST', body: JSON.stringify({ ip, hostnames: hn, comment: cmt }) });
+        if (r && r.success) { showToast('已添加', 'ok'); closeModal(); loadHosts(); }
+    }
+}
+
+async function submitBatch() {
+    const txt = $id('inp_bat').value.trim();
+    if (!txt) { showToast('请粘贴要导入的记录', 'err'); return; }
+    let ok = 0, fail = 0;
+    for (const line of txt.split('\n').filter(l => l.trim())) {
+        const cm = line.match(/#(.+)$/), comment = cm ? cm[1].trim() : '';
+        const main = cm ? line.replace(/#.+$/, '').trim() : line.trim();
+        const p = main.split(/\s+/);
+        if (p.length < 2) { fail++; continue; }
+        const r = await apiCall('/api/hosts/add', { method: 'POST', body: JSON.stringify({ ip: p[0], hostnames: p.slice(1).join(' '), comment }) });
+        r && r.success ? ok++ : fail++;
+    }
+    if (ok > 0) { showToast('导入成功 ' + ok + ' 条' + (fail > 0 ? ', ' + fail + ' 条失败' : ''), 'ok'); closeModal(); loadHosts(); }
+    else showToast('导入失败，请检查格式', 'err');
+}
+
+function confirmDelete(ln) {
+    const e = allEntries.find(x => x.line === ln); if (!e) return;
+    pendingDeleteLine = ln; $id('cctx').textContent = e.content;
+    $id('co').style.display = 'flex'; $id('btn_del').onclick = executeDelete;
+}
+function closeConfirm() { $id('co').style.display = 'none'; pendingDeleteLine = null; }
+async function executeDelete() {
+    if (!pendingDeleteLine) return;
+    const r = await apiCall('/api/hosts/delete/' + pendingDeleteLine, { method: 'DELETE' });
+    if (r && r.success) showToast('已删除', 'ok');
+    closeConfirm(); loadHosts();
+}
+
+async function backupHosts() {
+    const r = await apiCall('/api/hosts/backup', { method: 'POST' });
+    if (r && r.success) showToast('备份成功: ' + r.data.backup_path, 'ok');
+}
+
+async function flushDns() {
+    const r = await apiCall('/api/hosts/flush', { method: 'POST' });
+    if (r && r.success) showToast('DNS 缓存已刷新 (' + r.data.results.map(x => x[0]).join(', ') + ')', 'ok');
+}
+
+function openRestoreModal() {
+    $id('ro').style.display = 'flex';
+    $id('rlist').innerHTML = '<div style="text-align:center;padding:16px"><span class="spin"></span>加载备份列表...</div>';
+    loadBackupList();
+}
+function closeRestoreModal() { $id('ro').style.display = 'none'; }
+async function loadBackupList() {
+    const r = await apiCall('/api/hosts/backups'), div = $id('rlist');
+    if (!r || !r.success) { div.innerHTML = '<div style="text-align:center;padding:16px;color:var(--danger)">加载失败</div>'; return; }
+    const bs = r.data || [];
+    if (bs.length === 0) { div.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3)">暂无备份文件</div>'; return; }
+    div.innerHTML = bs.map((b, i) => '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;margin-bottom:3px;background:var(--bg4);border-radius:6px;border-left:' + (i === 0 ? '2px solid var(--primary)' : '2px solid transparent') + '"><div style="flex:1;min-width:0"><div style="font-family:Consolas,monospace;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(b.filename) + '">' + escapeHtml(b.filename) + '</div><div style="font-size:11px;color:var(--text3);margin-top:1px">' + b.mtime + ' . ' + formatSize(b.size) + '</div></div><button class="primary" onclick="restoreFromBackup(\'' + escapeHtml(b.filename) + '\')" style="margin-left:8px;flex-shrink:0;height:26px;padding:3px 12px;font-size:12px">还原</button></div>').join('');
+}
+async function restoreFromBackup(fn) {
+    if (!confirm('确定从备份 ' + fn + ' 还原 /etc/hosts 吗？\n\n还原前会自动备份当前版本。')) return;
+    $id('ro').style.display = 'none';
+    const r = await apiCall('/api/hosts/restore', { method: 'POST', body: JSON.stringify({ filename: fn }) });
+    if (r && r.success) { showToast('已从 ' + fn + ' 还原', 'ok'); loadHosts(); }
+}
+
+function updateStatus(ok) {
+    const st = $id('st'), stx = $id('stx');
+    if (ok) { st.className = 'st'; stx.textContent = '正常'; }
+    else { st.className = 'st err'; stx.textContent = '异常'; }
+}
+
+function showToast(msg, type) {
+    const d = document.createElement('div');
+    d.className = 'toast ' + type; d.textContent = msg;
+    $id('tos').appendChild(d);
+    setTimeout(() => { d.style.opacity = '0'; d.style.transition = 'opacity .15s'; setTimeout(() => d.remove(), 150); }, 3000);
+}
+
+function formatSize(b) { return b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(1) + ' KB' : (b / 1048576).toFixed(1) + ' MB'; }
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+document.addEventListener('click', e => {
+    if (e.target.id === 'mo') closeModal();
+    if (e.target.id === 'co') closeConfirm();
+    if (e.target.id === 'ro') closeRestoreModal();
+});
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeModal(); closeConfirm(); closeRestoreModal(); }
+    if (e.key === 'Enter' && $id('mo').style.display === 'flex') submitForm();
+});
+</script>
+</body>
+</html>
