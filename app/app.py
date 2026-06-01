@@ -47,6 +47,9 @@ HOSTS_FILE = "/etc/hosts"
 BACKUP_DIR = "/etc/hosts_backups"
 APP_HOST = "127.0.0.1"   # 仅监听本地回环，所有流量通过 Unix Socket 网关代理进入
 
+# 受保护 IP：系统默认 hosts 记录，禁止修改和删除
+PROTECTED_IPS = {"127.0.0.1", "127.0.1.1", "::1", "ff02::1", "ff02::2"}
+
 # fnOS 环境变量（遵循官方规范）
 #   APP_LOG_FILE 由 cmd/main 统一设置，确保脚本和 Python 写入同一日志
 #   TRIM_PKGVAR  官方推荐变量（ = /var/apps/fnnas.hosts/var ）
@@ -381,7 +384,7 @@ def api_diag():
     import platform
     info = {
         "app": {
-            "version": "1.0.60",
+            "version": "1.0.61",
             "pid": os.getpid(),
             "euid": os.geteuid(),
             "is_root": os.geteuid() == 0,
@@ -541,7 +544,6 @@ def api_delete_host(line_num):
     if not os.path.exists(HOSTS_FILE):
         return jsonify({"success": False, "error": "hosts 文件不存在"}), 404
 
-    backup_path = backup_hosts()
     try:
         with open(HOSTS_FILE, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -549,6 +551,12 @@ def api_delete_host(line_num):
             logger.warning("删除失败 | 行号 %d 超出范围 (1-%d)", line_num, len(lines))
             return jsonify({"success": False, "error": f"行号超出范围: {line_num}"}), 400
         deleted_line = lines[line_num - 1].strip()
+        # 校验受保护 IP
+        parts = re.split(r'\s+', deleted_line)
+        if parts and parts[0] in PROTECTED_IPS:
+            logger.warning("删除拒绝 | 受保护 IP: %s 第 %d 行", parts[0], line_num)
+            return jsonify({"success": False, "error": f"系统保留记录不可删除: {parts[0]}"}), 403
+        backup_path = backup_hosts()
         del lines[line_num - 1]
         with open(HOSTS_FILE, "w", encoding="utf-8") as f:
             f.writelines(lines)
@@ -586,18 +594,23 @@ def api_update_host(line_num):
         if not validate_hostname(hostname):
             return jsonify({"success": False, "error": f"无效的主机名: {hostname}"}), 400
 
-    backup_path = backup_hosts()
     try:
         with open(HOSTS_FILE, "r", encoding="utf-8") as f:
             lines = f.readlines()
         if line_num < 1 or line_num > len(lines):
             logger.warning("更新失败 | 行号 %d 超出范围 (1-%d)", line_num, len(lines))
             return jsonify({"success": False, "error": f"行号超出范围: {line_num}"}), 400
+        old_line = lines[line_num - 1].strip()
+        # 校验受保护 IP（以原记录 IP 为准）
+        old_parts = re.split(r'\s+', old_line)
+        if old_parts and old_parts[0] in PROTECTED_IPS:
+            logger.warning("更新拒绝 | 受保护 IP: %s 第 %d 行", old_parts[0], line_num)
+            return jsonify({"success": False, "error": f"系统保留记录不可修改: {old_parts[0]}"}), 403
+        backup_path = backup_hosts()
         new_line = f"{new_ip}\t{new_hostnames}"
         if new_comment:
             new_line += f"\t# {new_comment}"
         new_line += "\n"
-        old_line = lines[line_num - 1].strip()
         lines[line_num - 1] = new_line
         with open(HOSTS_FILE, "w", encoding="utf-8") as f:
             f.writelines(lines)
@@ -822,7 +835,7 @@ _early_log("所有路由注册完成，准备启动服务")
 
 if __name__ == "__main__":
     logger.info("=" * 50)
-    logger.info("Hosts 管理器 v1.0.60 启动")
+    logger.info("Hosts 管理器 v1.0.61 启动")
     logger.info("  HTTP:    %s:%s", APP_HOST, APP_PORT)
     logger.info("  Socket:  %s", UNIX_SOCKET_PATH)
     logger.info("  Dest:    %s", TRIM_APPDEST)

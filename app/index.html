@@ -441,7 +441,7 @@ html.dark .act button.del:hover{color:#f87171}
 <body>
 <div class="app">
     <div class="top">
-        <div><h1>Hosts 文件管理<span class="ver">v1.0.60</span></h1></div>
+        <div><h1>Hosts 文件管理<span class="ver">v1.0.61</span></h1></div>
         <div class="st" id="st"><span id="stx">正常</span></div>
     </div>
 
@@ -521,6 +521,7 @@ html.dark .act button.del:hover{color:#f87171}
 
 <script>
 const API_BASE = '/app/fnnas-hosts';
+const PROTECTED_IPS = ['127.0.0.1','127.0.1.1','::1','ff02::1','ff02::2'];
 let allEntries = [], currentEditLine = null, pendingDeleteLine = null, isBatchMode = false;
 
 document.addEventListener('DOMContentLoaded', loadHosts);
@@ -557,7 +558,11 @@ function renderTable(filtered) {
     if (hosts.length === 0) { tb.innerHTML = '<tr><td colspan="5"><div class="empty">没有匹配的记录</div></td></tr>'; return; }
     tb.innerHTML = hosts.map(e => {
         const cmt = e.content.includes('#') ? e.content.split('#').slice(1).join('#').trim() : '';
-        return '<tr data-line="' + e.line + '"><td style="color:var(--text3)">' + e.line + '</td><td class="ip">' + escapeHtml(e.ip) + '</td><td class="hn">' + escapeHtml(e.hostnames) + '</td><td class="cmt" title="' + escapeHtml(cmt) + '">' + (escapeHtml(cmt)||'-') + '</td><td class="act"><button onclick="openEditModal(' + e.line + ')">编辑</button><button class="del" onclick="confirmDelete(' + e.line + ')">删除</button></td></tr>';
+        const isProtected = PROTECTED_IPS.includes(e.ip);
+        const act = isProtected
+            ? '<span style="color:var(--text3);font-size:12px">系统保留</span>'
+            : '<button onclick="openEditModal(' + e.line + ')">编辑</button><button class="del" onclick="confirmDelete(' + e.line + ')">删除</button>';
+        return '<tr data-line="' + e.line + '"><td style="color:var(--text3)">' + e.line + '</td><td class="ip">' + escapeHtml(e.ip) + '</td><td class="hn">' + escapeHtml(e.hostnames) + '</td><td class="cmt" title="' + escapeHtml(cmt) + '">' + (escapeHtml(cmt)||'-') + '</td><td class="act">' + act + '</td></tr>';
     }).join('');
     $id('cnt').innerHTML = '共 ' + hosts.length + ' 条记录';
 }
@@ -582,6 +587,7 @@ function openAddModal() {
 function openEditModal(ln) {
     const e = allEntries.find(x => x.line === ln);
     if (!e) return;
+    if (PROTECTED_IPS.includes(e.ip)) { showToast('系统保留记录不可修改: ' + e.ip, 'err'); return; }
     currentEditLine = ln; isBatchMode = false;
     $id('mt').textContent = '编辑记录 (第 ' + ln + ' 行)';
     $id('inp_ip').value = e.ip;
@@ -641,6 +647,7 @@ async function submitBatch() {
 
 function confirmDelete(ln) {
     const e = allEntries.find(x => x.line === ln); if (!e) return;
+    if (PROTECTED_IPS.includes(e.ip)) { showToast('系统保留记录不可删除: ' + e.ip, 'err'); return; }
     pendingDeleteLine = ln; $id('cctx').textContent = e.content;
     $id('co').style.display = 'flex'; $id('btn_del').onclick = executeDelete;
 }
