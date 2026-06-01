@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -7,74 +7,220 @@
 <script>
 (function(){
     var h=document.documentElement;
-    function applyTheme(isDark){
-        if(isDark) h.classList.add('dark');
-        else h.classList.remove('dark');
+    var _currentTheme=null; // 缓存当前主题状态，避免重复设置
+    var _themeSource=null;  // 记录主题来源，防止低优先级源覆盖高优先级源
+
+    function setTheme(isDark, source){
+        var cls='dark';
+        if(isDark===_currentTheme) return;
+        _currentTheme=isDark;
+        _themeSource=source||_themeSource;
+        if(isDark){h.classList.add(cls);}
+        else{h.classList.remove(cls);}
     }
+
+
     function detectTheme(){
-        var isDark=false, resolved=false;
-        // 1. 尝试从父窗口检测 .dark class（fnOS iframe 环境）
+        var isDark=false, resolved=false, source=null;
+
+        // 1. URL 参数 ?theme=dark|light（fnOS 官方建议方案）
         try{
-            if(window.parent!==window&&window.parent.document){
-                var parentHtml=window.parent.document.documentElement;
-                // 检查父窗口是否有 .dark class
-                if(parentHtml.classList.contains('dark')){
-                    isDark=true; resolved=true;
-                }
-                // 检查 data-theme 属性
-                if(!resolved){
-                    var v=parentHtml.getAttribute('data-theme')||parentHtml.getAttribute('data-color-scheme');
-                    if(v){
-                        v=v.toLowerCase();
-                        if(v.indexOf('dark')!==-1){isDark=true; resolved=true;}
-                        else if(v.indexOf('light')!==-1){isDark=false; resolved=true;}
-                    }
-                }
-                // 通过父窗口背景亮度判断
-                if(!resolved){
-                    var b=getComputedStyle(parentHtml).backgroundColor;
-                    var c=b.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-                    if(c){
-                        var br=(parseInt(c[1])*299+parseInt(c[2])*587+parseInt(c[3])*114)/1000;
-                        isDark=br<128; resolved=true;
-                    }
-                }
-            }
+            var m=location.search.match(/[?&]theme=(dark|light)/i);
+            if(m){isDark=m[1].toLowerCase()==='dark';resolved=true;source='url';}
         }catch(e){}
-        // 2. matchMedia 系统主题作为兜底
+
+        // 2. Cookie fnos_theme=dark|light（fnOS 官方建议方案）
+        if(!resolved){
+            try{
+                var cm=document.cookie.match(/(?:^|;\s*)fnos_theme=(dark|light)/i);
+                if(cm){isDark=cm[1].toLowerCase()==='dark';resolved=true;source='cookie';}
+            }catch(e){}
+        }
+
+        // 3. 自身 document 检测（fnOS 可能注入 theme-mode 到 iframe）
+        if(!resolved){
+            try{
+                if(document.body){
+                    var selfTm=document.body.getAttribute('theme-mode');
+                    if(selfTm==='dark'){isDark=true;resolved=true;source='self';}
+                    else if(selfTm==='light'){isDark=false;resolved=true;source='self';}
+                }
+            }catch(e){}
+        }
+
+        // 4. 尝试访问父窗口 DOM 检测主题（同域 iframe 有效）
+        if(!resolved){
+            try{
+                if(window.parent!==window&&window.parent.document){
+                    var pb=window.parent.document.body;
+                    var ph=window.parent.document.documentElement;
+
+                    // 4a. body[theme-mode]（fnOS 原生机制）
+                    if(pb){
+                        var tm=pb.getAttribute('theme-mode');
+                        if(tm==='dark'){isDark=true;resolved=true;source='parent';}
+                        else if(tm==='light'){isDark=false;resolved=true;source='parent';}
+                    }
+
+                    // 4b. html[theme-mode]（部分实现放在 html 上）
+                    if(!resolved){
+                        var htm=ph.getAttribute('theme-mode');
+                        if(htm==='dark'){isDark=true;resolved=true;source='parent';}
+                        else if(htm==='light'){isDark=false;resolved=true;source='parent';}
+                    }
+
+                    // 4c. html.dark / html.theme-dark class
+                    if(!resolved){
+                        if(ph.classList.contains('dark')||ph.classList.contains('theme-dark')){
+                            isDark=true;resolved=true;source='parent';
+                        }else if(ph.classList.contains('light')||ph.classList.contains('theme-light')){
+                            isDark=false;resolved=true;source='parent';
+                        }
+                    }
+
+                    // 4d. data-theme / data-color-scheme 属性
+                    if(!resolved){
+                        var v=ph.getAttribute('data-theme')||ph.getAttribute('data-color-scheme');
+                        if(v){v=v.toLowerCase();
+                            if(v.indexOf('dark')!==-1){isDark=true;resolved=true;source='parent';}
+                            else if(v.indexOf('light')!==-1){isDark=false;resolved=true;source='parent';}
+                        }
+                    }
+
+                    // 4e. 读取父窗口 CSS 变量判断主题（最可靠的兜底方案）
+                    if(!resolved){
+                        try{
+                            var cs=getComputedStyle(ph);
+                            // 先尝试用 fnOS 的 Semi Design 变量
+                            var bg0=cs.getPropertyValue('--semi-color-bg-0').trim();
+                            if(bg0){
+                                var cm2=bg0.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                                if(cm2){
+                                    var br=(parseInt(cm2[1])*299+parseInt(cm2[2])*587+parseInt(cm2[3])*114)/1000;
+                                    isDark=br<128;resolved=true;source='parent';
+                                }
+                            }
+                        }catch(ex){}
+                    }
+
+                    // 4f. 父窗口背景亮度兜底
+                    if(!resolved){
+                        var bg=getComputedStyle(pb||ph).backgroundColor;
+                        var c=bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+                        if(c){
+                            var br=(parseInt(c[1])*299+parseInt(c[2])*587+parseInt(c[3])*114)/1000;
+                            isDark=br<128;resolved=true;source='parent';
+                        }
+                    }
+                }
+            }catch(e){}
+        }
+
+        // 5. referrer URL 检测（跨域 iframe 兜底）
+        if(!resolved){
+            try{
+                var ref=document.referrer;
+                if(ref){
+                    var rm=ref.match(/[?&]theme=(dark|light)/i);
+                    if(rm){isDark=rm[1].toLowerCase()==='dark';resolved=true;source='referrer';}
+                }
+            }catch(e){}
+        }
+
+        // 6. matchMedia 系统主题兜底
         if(!resolved){
             try{
                 isDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
-                resolved=true;
+                resolved=true;source='os';
             }catch(e){}
         }
-        applyTheme(isDark);
+
+        setTheme(isDark, source);
     }
+
+    // 初始检测（多次延迟确保捕获到主题）
     detectTheme();
-    // 延迟再检测一次，确保父窗口已完全渲染
-    setTimeout(detectTheme,100);
-    setTimeout(detectTheme,500);
-    // 监听系统主题变化
-    try{window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(e){applyTheme(e.matches);});}catch(e){}
-    // 监听父窗口通过 postMessage 传递主题
+    setTimeout(detectTheme,50);
+    setTimeout(detectTheme,200);
+    setTimeout(detectTheme,800);
+
+    // 监听系统主题变化（仅作为兜底，不覆盖 URL/Cookie/父窗口 已检测的主题）
+    try{
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(e){
+            // URL/Cookie/parent 检测到的主题不覆盖
+            if(_themeSource&&_themeSource!=='os'&&_themeSource!=='referrer') return;
+            setTheme(e.matches, 'os');
+        });
+    }catch(e){}
+
+    // 监听 postMessage 主题通知（fnOS 可能通过此方式通知 iframe 内应用）
     window.addEventListener('message',function(e){
         try{
             var d=typeof e.data==='string'?JSON.parse(e.data):e.data;
-            if(d&&(d.theme||d.type==='theme'||d.colorScheme)){
-                var v=d.theme||d.value||d.colorScheme;
-                if(v==='light') applyTheme(false);
-                else if(v==='dark') applyTheme(true);
+            if(!d) return;
+            // 多种消息格式兼容
+            var v=d.theme||d.value||d.mode||d.colorScheme||d.themeMode;
+            if(!v&&d.type){
+                if(d.type==='theme'||d.type==='theme-change'||d.type==='color-scheme'){
+                    v=d.value||d.theme||d.mode||d.data;
+                }
+            }
+            if(v){
+                v=String(v).toLowerCase();
+                if(v==='dark'||v.indexOf('dark')!==-1){setTheme(true,'message');return;}
+                if(v==='light'||v.indexOf('light')!==-1){setTheme(false,'message');return;}
             }
         }catch(ex){}
     });
-    // MutationObserver: 监听父窗口 class 变化（如果父窗口切换了主题）
+
+    // MutationObserver: 监听自身 document.body 的 theme-mode 属性变化（DOMReady 后安装）
+    function _installSelfObs(){
+        try{
+            if(!document.body) return;
+            var selfObs=new MutationObserver(function(){
+                var tm=document.body.getAttribute('theme-mode');
+                if(tm==='dark'){setTheme(true,'self');return;}
+                if(tm==='light'){setTheme(false,'self');return;}
+            });
+            selfObs.observe(document.body,{
+                attributes:true,
+                attributeFilter:['theme-mode']
+            });
+        }catch(e){}
+    }
+    if(document.body){_installSelfObs();}
+    else{document.addEventListener('DOMContentLoaded',_installSelfObs);}
+
+    // MutationObserver: 监听父窗口主题变化
     try{
         if(window.parent!==window&&window.parent.document){
             var obs=new MutationObserver(function(){
-                var parentHtml=window.parent.document.documentElement;
-                applyTheme(parentHtml.classList.contains('dark'));
+                var pb=window.parent.document.body;
+                var ph=window.parent.document.documentElement;
+                // body[theme-mode]
+                var tm=pb?pb.getAttribute('theme-mode'):null;
+                if(tm==='dark'){setTheme(true,'parent');return;}
+                if(tm==='light'){setTheme(false,'parent');return;}
+                // html[theme-mode]
+                var htm=ph.getAttribute('theme-mode');
+                if(htm==='dark'){setTheme(true,'parent');return;}
+                if(htm==='light'){setTheme(false,'parent');return;}
+                // html class
+                if(ph.classList.contains('dark')||ph.classList.contains('theme-dark'))
+                    {setTheme(true,'parent');return;}
+                if(ph.classList.contains('light')||ph.classList.contains('theme-light'))
+                    {setTheme(false,'parent');return;}
             });
-            obs.observe(window.parent.document.documentElement,{attributes:true,attributeFilter:['class','data-theme','data-color-scheme']});
+            obs.observe(window.parent.document.documentElement,{
+                attributes:true,
+                attributeFilter:['class','theme-mode','data-theme','data-color-scheme']
+            });
+            if(window.parent.document.body){
+                obs.observe(window.parent.document.body,{
+                    attributes:true,
+                    attributeFilter:['theme-mode']
+                });
+            }
         }
     }catch(e){}
 })();
@@ -239,13 +385,63 @@ html.dark .dlg .hd button:hover{color:#e2e8f0}
 html.dark .act button:hover{color:#60a5fa}
 html.dark .act button.del:hover{color:#f87171}
 
-@media(max-width:600px){.bar{flex-direction:column;align-items:stretch}.bar input{width:100%}.bar .count{margin-left:0}}
+/* ===================== 移动端自适应 (<600px) ===================== */
+@media(max-width:600px){
+    .app{padding:12px 8px 8px}
+    .top{padding-bottom:10px;margin-bottom:12px}
+    .bar{flex-direction:column;align-items:stretch}.bar input{width:100%}.bar .count{margin-left:0}
+    /* 表格 → 卡片式布局 */
+    .tbl{border:none;background:transparent;border-radius:0}
+    .tbl table, .tbl thead, .tbl tbody, .tbl tr, .tbl th, .tbl td{display:block}
+    .tbl thead{display:none}  /* 隐藏表头 */
+    .tbl tr{
+        background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+        margin-bottom:10px;padding:10px 12px;
+    }
+    .tbl tr:hover td{background:transparent}
+    .tbl td{padding:2px 0;border:none}
+    /* 行号通过 data-line 属性展示 */
+    .tbl td:first-child{display:none}
+    .tbl tr::before{
+        content:'第 ' attr(data-line) ' 行';
+        display:block;font-size:11px;color:var(--text3);
+        margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--border2);
+        width:100%;
+    }
+    /* IP 地址：卡片标题，突出显示 */
+    .tbl td.ip{font-size:15px;font-weight:600;padding-bottom:6px;margin-bottom:4px;border-bottom:1px solid var(--border2)}
+    /* 主机名 */
+    .tbl td.hn{padding-bottom:6px;margin-bottom:2px;font-size:13px;word-break:break-all}
+    .tbl td.hn::before{content:'主机名: ';font-size:11px;color:var(--text3)}
+    /* 注释 */
+    .tbl td.cmt{padding-bottom:6px;margin-bottom:2px;font-size:13px;max-width:100%;white-space:normal;overflow:visible;text-overflow:unset}
+    .tbl td.cmt::before{content:'注释: ';font-size:11px;color:var(--text3)}
+    /* 操作按钮：底部独立一行 */
+    .tbl td.act{padding-top:6px;border-top:1px solid var(--border2);margin-top:2px}
+    .act button{font-size:13px;padding:4px 12px;border:1px solid var(--border);border-radius:4px;background:var(--bg4);margin-right: 15px;}
+    .act button:hover{background:var(--primary);color:var(--btn-text);text-decoration:none}
+    .act button.del{border-color:var(--danger);color:var(--danger)}
+    .act button.del:hover{background:var(--danger);color:var(--btn-text)}
+    /* 空状态 */
+    .empty{padding:24px 8px}
+    /* 弹窗全宽 */
+    .dlg{width:96%;max-width:100%;border-radius:10px;margin:0 2%}
+    .dlg .hd{padding:10px 12px;font-size:13px}
+    .dlg .bd{padding:12px}
+    .dlg .ft{padding:8px 12px;flex-wrap:wrap}
+    .dlg .ft button{font-size:12px;padding:5px 10px}
+    /* Toast 靠左 */
+    .toasts{right:4px;left:4px;max-width:none}
+    .toast{max-width:100%}
+    /* 底部 */
+    .footer{padding:8px;font-size:11px}
+}
 </style>
 </head>
 <body>
 <div class="app">
     <div class="top">
-        <div><h1>Hosts 文件管理<span class="ver">v1.0.54</span></h1></div>
+        <div><h1>Hosts 文件管理<span class="ver">v1.0.60</span></h1></div>
         <div class="st" id="st"><span id="stx">正常</span></div>
     </div>
 
@@ -266,7 +462,7 @@ html.dark .act button.del:hover{color:#f87171}
         </table>
     </div>
 </div>
-<div class="footer">Hosts 管理器 &copy; 豪子选房</div>
+<div class="footer">Hosts 管理器 &copy; 飞牛应用</div>
 
 <div class="toasts" id="tos"></div>
 
@@ -361,7 +557,7 @@ function renderTable(filtered) {
     if (hosts.length === 0) { tb.innerHTML = '<tr><td colspan="5"><div class="empty">没有匹配的记录</div></td></tr>'; return; }
     tb.innerHTML = hosts.map(e => {
         const cmt = e.content.includes('#') ? e.content.split('#').slice(1).join('#').trim() : '';
-        return '<tr><td style="color:var(--text3)">' + e.line + '</td><td class="ip">' + escapeHtml(e.ip) + '</td><td class="hn">' + escapeHtml(e.hostnames) + '</td><td class="cmt" title="' + escapeHtml(cmt) + '">' + (escapeHtml(cmt)||'-') + '</td><td class="act"><button onclick="openEditModal(' + e.line + ')">编辑</button><button class="del" onclick="confirmDelete(' + e.line + ')">删除</button></td></tr>';
+        return '<tr data-line="' + e.line + '"><td style="color:var(--text3)">' + e.line + '</td><td class="ip">' + escapeHtml(e.ip) + '</td><td class="hn">' + escapeHtml(e.hostnames) + '</td><td class="cmt" title="' + escapeHtml(cmt) + '">' + (escapeHtml(cmt)||'-') + '</td><td class="act"><button onclick="openEditModal(' + e.line + ')">编辑</button><button class="del" onclick="confirmDelete(' + e.line + ')">删除</button></td></tr>';
     }).join('');
     $id('cnt').innerHTML = '共 ' + hosts.length + ' 条记录';
 }

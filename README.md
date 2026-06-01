@@ -1,5 +1,5 @@
 [RELEASE.md](https://github.com/user-attachments/files/28292606/RELEASE.md)
-# Hosts管理器 v1.0.46
+# Hosts管理器 v1.0.60
 
 > 飞牛NAS（fnOS）`/etc/hosts` 文件可视化管理工具 —— 纯 Python + 原生前端，无框架依赖
 
@@ -96,6 +96,39 @@ fn-hosts/
 ---
 
 ##  更新日志
+
+### v1.0.60
+- LICENSE 更新为全中文 Apache 2.0 协议
+- LICENSE 附录填入应用详细信息（名称、版本、作者、技术栈、功能特性）
+
+### v1.0.59
+- 新增 `_themeSource` 主题来源追踪，防止 OS 级 matchMedia 变化覆盖父窗口检测到的主题
+- 新增父窗口 `html[theme-mode]` 属性检测（部分实现放在 html 上）
+- 新增父窗口 `html.theme-dark` / `.theme-light` class 兼容
+- 新增父窗口 CSS 变量 `--semi-color-bg-0` 亮度检测兜底（最可靠方案）
+- 父窗口 MutationObserver 同步增强为多属性监听
+
+### v1.0.58
+- 修复 CSS `:root` 语法（之前误写为 `::root`）
+- 修复 Cookie 主题检测正则表达式双转义问题（`\\s` → `\s`）
+- 修复 MutationObserver 在 `<head>` 中执行时 `document.body` 为 null 导致无法安装自身主题监听
+
+### v1.0.57
+- 主题检测全面重写：新增 URL 参数 `?theme=dark|light` 和 Cookie `fnos_theme` 检测（fnOS 官方论坛建议方案）
+- 优化多级优先级策略：URL参数 → Cookie → 父窗口DOM → 系统matchMedia，确保正确识别系统主题
+- 新增主题缓存机制，避免重复设置相同主题
+
+### v1.0.56
+- 修复亮色主题 bug：`::root` CSS 语法错误改为 `:root`（导致亮色 CSS 变量全部失效）
+- 主题检测 JS 重写：优先检测 fnOS 的 `body[theme-mode=dark]` 机制，兼容 `.dark` class / data-theme / 背景亮度等多种方案
+- 修复 MutationObserver 同时监听 `body[theme-mode]` 和 `html class` 变化
+
+### v1.0.55
+- 移动端表格响应式适配：≤600px 屏幕自动切换为 card 卡片布局，带行号和字段标签
+- PC 端布局完全不受影响
+
+### v1.0.54
+- 彻底放弃 venv（fnOS 缺少 math 等 C 扩展），改用 `pip --target vendor/` 本地隔离 + 系统 Python 直接运行
 
 ### v1.0.46
 - 修复 `body:not(.dark)` 选择器错误（`.dark` 在 `html` 上不在 `body` 上），亮模式样式彻底生效

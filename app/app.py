@@ -381,7 +381,7 @@ def api_diag():
     import platform
     info = {
         "app": {
-            "version": "1.0.29",
+            "version": "1.0.60",
             "pid": os.getpid(),
             "euid": os.geteuid(),
             "is_root": os.geteuid() == 0,
@@ -822,7 +822,7 @@ _early_log("所有路由注册完成，准备启动服务")
 
 if __name__ == "__main__":
     logger.info("=" * 50)
-    logger.info("Hosts 管理器 v1.0.29 启动")
+    logger.info("Hosts 管理器 v1.0.60 启动")
     logger.info("  HTTP:    %s:%s", APP_HOST, APP_PORT)
     logger.info("  Socket:  %s", UNIX_SOCKET_PATH)
     logger.info("  Dest:    %s", TRIM_APPDEST)
